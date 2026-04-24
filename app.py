@@ -18,7 +18,7 @@ h1, h2, h3, h4, h5, h6, p, label {
 st.set_page_config(page_title="Validador de Becas", layout="wide")
 
 st.title("Sistema de recepción y validación de becas")
-st.caption("Carga un archivo Excel o CSV, ejecútalo contra las reglas del validador y descarga el reporte de resultados.")
+st.caption("Carga un archivo Excel o CSV, ejecuta el validador y descarga el reporte de resultados.")
 
 st.info(""" 
 Este sistema es únicamente para validación previa de archivos.
@@ -36,9 +36,12 @@ with st.sidebar:
 <div style="font-family: Cambria, Georgia, 'Times New Roman', serif; line-height: 1.8;">
 <b>Flujo del proceso</b><br><br>
 1. Cargue el archivo para la validación.<br>
-2. El sistema valida automáticamente.<br>
-3. Se visualizan errores por fila y columna.<br>
-4. Se debe descargar el reporte en caso de errores para su corrección.
+2. El sistema realizará la validación de manera automática.<br>
+3. Se visualizarán los errores identificados por fila y columna.<br>
+4. En caso de existir observaciones, deberá descargar el reporte para su respectiva corrección.<br>
+5. Una vez descargado el archivo, el reporte será eliminado del sistema.<br>
+6. Podrá cargar nuevamente el archivo las veces que sean necesarias, hasta que no presente observaciones.<br>
+7. En caso de remitir el archivo con observaciones pendientes, este será devuelto para su corrección, lo que ocasionará retrasos en el proceso de consolidación de la información.
 </div>
 """, unsafe_allow_html=True)
 
@@ -73,8 +76,8 @@ if uploaded_file is not None:
 
         if st.button("Ejecutar validación", type="primary"):
             validator = BecaValidator()
-            df_validated, df_errors = validator.validate(df)
-            workbook_bytes = build_output_workbook(df_validated, df_errors)
+            df_validated, df_errors, df_duplicados = validator.validate(df)
+            workbook_bytes = build_output_workbook(df_validated, df_errors, df_duplicados)
 
             st.subheader("Resultado")
             c1, c2, c3 = st.columns(3)
