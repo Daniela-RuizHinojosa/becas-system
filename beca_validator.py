@@ -99,8 +99,6 @@ REQUIRED_COLUMNS = [
     "duracion_carrera_periodos",
     "culmino_estudios_p1",
     "culmino_estudios_p2",
-    "tipo_beca_p1",
-    "tipo_beca_p2",
 ]
 
 # Estos campos se exigen solamente cuando el periodo sí registra beca,
@@ -433,6 +431,8 @@ class BecaValidator:
 
     def validate_required_fields(self, df: pd.DataFrame) -> None:
         # 1) Campos generales obligatorios.
+        # Nota: tipo_beca_p1/p2 se valida abajo de forma condicional, porque si
+        # estado_beca_p1/p2 viene como "SIN BECA", no debe exigirse el tipo.
         for col in REQUIRED_COLUMNS:
             if col not in df.columns:
                 continue
@@ -441,22 +441,27 @@ class BecaValidator:
                     self.add_error(idx, col, "obligatorio", "Campo obligatorio vacío.", value)
 
         # 2) Campos obligatorios condicionales por periodo.
-        # Si tipo_beca_p1/p2 = "SIN BECA", no se exigen los demás campos del
-        # bloque de beca de ese periodo.
+        # Si tipo_beca o estado_beca es "SIN BECA", no se exigen los demás
+        # campos del bloque de beca de ese periodo.
         for suffix in ["p1", "p2"]:
             tipo_col = f"tipo_beca_{suffix}"
+            estado_col = f"estado_beca_{suffix}"
             if tipo_col not in df.columns:
                 continue
 
             for idx, row in df.iterrows():
                 tipo_beca = normalize_text(row.get(tipo_col))
+                estado_beca = canonical_estado_beca(row.get(estado_col)) if estado_col in df.columns else ""
 
-                # Si no se informó tipo_beca, el error ya se registró arriba.
-                if not tipo_beca:
+                # Caso clave: SIN BECA en tipo o en estado no activa
+                # obligatoriedad del resto del bloque.
+                if tipo_beca == "SIN BECA" or estado_beca == "SIN BECA":
                     continue
 
-                # Caso clave: SIN BECA no activa obligatoriedad del resto del bloque.
-                if tipo_beca == "SIN BECA":
+                # Si no se informó tipo_beca y tampoco existe marca SIN BECA en
+                # estado_beca, entonces sí se reporta como obligatorio.
+                if not tipo_beca:
+                    self.add_error(idx, tipo_col, "obligatorio", "Campo obligatorio vacío.", row.get(tipo_col))
                     continue
 
                 # Si sí tiene beca, estos campos deben estar llenos.
