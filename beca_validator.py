@@ -77,10 +77,6 @@ P2_COLUMNS = [
 
 EXPECTED_COLUMNS = FIXED_COLUMNS + P1_COLUMNS + P2_COLUMNS
 
-# Campos obligatorios generales: se exigen siempre, independientemente de si tiene beca.
-# Los campos propios de cada periodo se validan de forma condicional en
-# validate_required_fields(): si tipo_beca_p1/p2 = "SIN BECA", no se exigen
-# los demás campos del bloque de beca de ese periodo.
 REQUIRED_COLUMNS = [
     "codigo_ies",
     "nombre_ies",
@@ -99,26 +95,19 @@ REQUIRED_COLUMNS = [
     "duracion_carrera_periodos",
     "culmino_estudios_p1",
     "culmino_estudios_p2",
+    "tipo_beca_p1",
+    "periodo_academico_p1",
+    "nivel_cursa_p1",
+    "costo_matricula_p1",
+    "costo_arancel_p1",
+    "estado_beca_p1",
+    "tipo_beca_p2",
+    "periodo_academico_p2",
+    "nivel_cursa_p2",
+    "costo_matricula_p2",
+    "costo_arancel_p2",
+    "estado_beca_p2",
 ]
-
-# Estos campos se exigen solamente cuando el periodo sí registra beca,
-# es decir, cuando tipo_beca_p1/p2 es distinto de "SIN BECA".
-REQUIRED_IF_TIENE_BECA = {
-    "p1": [
-        "periodo_academico_p1",
-        "nivel_cursa_p1",
-        "costo_matricula_p1",
-        "costo_arancel_p1",
-        "estado_beca_p1",
-    ],
-    "p2": [
-        "periodo_academico_p2",
-        "nivel_cursa_p2",
-        "costo_matricula_p2",
-        "costo_arancel_p2",
-        "estado_beca_p2",
-    ],
-}
 
 # ============================================================
 # CATÁLOGOS
@@ -311,6 +300,13 @@ def is_empty(value: Any) -> bool:
     return pd.isna(value) or str(value).strip() == ""
 
 
+def periodo_es_sin_beca(row: pd.Series, suffix: str) -> bool:
+    """True si en el periodo se declaró SIN BECA en tipo o en estado."""
+    tipo = normalize_text(row.get(f"tipo_beca_{suffix}"))
+    estado = canonical_estado_beca(row.get(f"estado_beca_{suffix}"))
+    return tipo == "SIN BECA" or estado == "SIN BECA"
+
+
 def safe_float(value: Any) -> Optional[float]:
     if pd.isna(value) or str(value).strip() == "":
         return None
@@ -430,50 +426,59 @@ class BecaValidator:
             print(f"Advertencia: existen columnas no esperadas que serán conservadas: {extra}")
 
     def validate_required_fields(self, df: pd.DataFrame) -> None:
-        # 1) Campos generales obligatorios.
-        # Nota: tipo_beca_p1/p2 se valida abajo de forma condicional, porque si
-        # estado_beca_p1/p2 viene como "SIN BECA", no debe exigirse el tipo.
-        for col in REQUIRED_COLUMNS:
-            if col not in df.columns:
-                continue
-            for idx, value in df[col].items():
+        """
+        Valida campos obligatorios.
+
+        Regla especial:
+        - Si en un periodo se registra SIN BECA en tipo_beca o estado_beca,
+          no se exigen los campos asociados a beca de ese periodo.
+        """
+        campos_periodo = {
+            "p1": {
+                "tipo_beca_p1",
+                "periodo_academico_p1",
+                "nivel_cursa_p1",
+                "costo_matricula_p1",
+                "costo_arancel_p1",
+                "estado_beca_p1",
+                "motivo_beca_p1",
+                "fecha_entrega_beca_p1",
+                "monto_financiado_estado_matricula_p1",
+                "monto_financiado_estado_arancel_p1",
+                "monto_financiado_ies_matricula_p1",
+                "monto_financiado_ies_arancel_p1",
+            },
+            "p2": {
+                "tipo_beca_p2",
+                "periodo_academico_p2",
+                "nivel_cursa_p2",
+                "costo_matricula_p2",
+                "costo_arancel_p2",
+                "estado_beca_p2",
+                "motivo_beca_p2",
+                "fecha_entrega_beca_p2",
+                "monto_financiado_estado_matricula_p2",
+                "monto_financiado_estado_arancel_p2",
+                "monto_financiado_ies_matricula_p2",
+                "monto_financiado_ies_arancel_p2",
+            },
+        }
+
+        for idx, row in df.iterrows():
+            for col in REQUIRED_COLUMNS:
+                if col not in df.columns:
+                    continue
+
+                # Si el periodo está declarado como SIN BECA, no se exige
+                # ningún campo del bloque de beca de ese periodo.
+                if col in campos_periodo["p1"] and periodo_es_sin_beca(row, "p1"):
+                    continue
+                if col in campos_periodo["p2"] and periodo_es_sin_beca(row, "p2"):
+                    continue
+
+                value = row.get(col)
                 if is_empty(value):
                     self.add_error(idx, col, "obligatorio", "Campo obligatorio vacío.", value)
-
-        # 2) Campos obligatorios condicionales por periodo.
-        # Si tipo_beca o estado_beca es "SIN BECA", no se exigen los demás
-        # campos del bloque de beca de ese periodo.
-        for suffix in ["p1", "p2"]:
-            tipo_col = f"tipo_beca_{suffix}"
-            estado_col = f"estado_beca_{suffix}"
-            if tipo_col not in df.columns:
-                continue
-
-            for idx, row in df.iterrows():
-                tipo_beca = normalize_text(row.get(tipo_col))
-                estado_beca = canonical_estado_beca(row.get(estado_col)) if estado_col in df.columns else ""
-
-                # Caso clave: SIN BECA en tipo o en estado no activa
-                # obligatoriedad del resto del bloque.
-                if tipo_beca == "SIN BECA" or estado_beca == "SIN BECA":
-                    continue
-
-                # Si no se informó tipo_beca y tampoco existe marca SIN BECA en
-                # estado_beca, entonces sí se reporta como obligatorio.
-                if not tipo_beca:
-                    self.add_error(idx, tipo_col, "obligatorio", "Campo obligatorio vacío.", row.get(tipo_col))
-                    continue
-
-                # Si sí tiene beca, estos campos deben estar llenos.
-                for col in REQUIRED_IF_TIENE_BECA.get(suffix, []):
-                    if col in df.columns and is_empty(row.get(col)):
-                        self.add_error(
-                            idx,
-                            col,
-                            "obligatorio_condicional",
-                            f"Campo obligatorio cuando {tipo_col} es distinto de 'SIN BECA'.",
-                            row.get(col),
-                        )
 
     def validate_catalogs(self, df: pd.DataFrame) -> None:
         catalog_rules = {
@@ -641,9 +646,8 @@ class BecaValidator:
                 estado = canonical_estado_beca(row.get(f"estado_beca_{suffix}"))
                 tipo_beca = normalize_text(row.get(f"tipo_beca_{suffix}"))
 
-                # Si el periodo está marcado como SIN BECA en tipo_beca o estado_beca,
-                # no aplican las reglas de consistencia financiera ni de entrega de beca
-                # para ese periodo.
+                # Si el periodo está declarado como SIN BECA, no se aplican
+                # reglas financieras ni de obligatoriedad propias de beca.
                 if tipo_beca == "SIN BECA" or estado == "SIN BECA":
                     continue
 
@@ -704,22 +708,17 @@ class BecaValidator:
             return
 
         for idx, row in df.iterrows():
-            tipo_p1 = normalize_text(row.get("tipo_beca_p1"))
-            tipo_p2 = normalize_text(row.get("tipo_beca_p2"))
-
-            estado_p1 = canonical_estado_beca(row.get("estado_beca_p1"))
-            estado_p2 = canonical_estado_beca(row.get("estado_beca_p2"))
-
-            # La matriz Estado Beca / Culminó Estudios aplica únicamente cuando
-            # existe beca registrada en ambos periodos. Si algún periodo es
-            # SIN BECA, no se fuerza la relación de estados de beca.
-            if "SIN BECA" in {tipo_p1, tipo_p2, estado_p1, estado_p2}:
-                continue
-
-            e1 = estado_p1
+            e1 = canonical_estado_beca(row.get("estado_beca_p1"))
             c1 = canonical_si_no(row.get("culmino_estudios_p1"))
-            e2 = estado_p2
+            e2 = canonical_estado_beca(row.get("estado_beca_p2"))
             c2 = canonical_si_no(row.get("culmino_estudios_p2"))
+            t1 = normalize_text(row.get("tipo_beca_p1"))
+            t2 = normalize_text(row.get("tipo_beca_p2"))
+
+            # Si alguno de los periodos está declarado como SIN BECA,
+            # no se evalúa la matriz de transición de becas.
+            if "SIN BECA" in {e1, e2, t1, t2}:
+                continue
 
             if not e1 or not c1 or not e2 or not c2:
                 continue
