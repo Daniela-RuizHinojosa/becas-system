@@ -153,6 +153,7 @@ VALID_ESTADO_BECA = {
     "PIERDE BECA",
     "PIERDE LA BECA",
     "NO APLICA",
+    "SIN BECA",
 }
 VALID_CULMINO = {"SI", "NO"}
 VALID_MOTIVO_BECA = {
@@ -299,6 +300,7 @@ def canonical_estado_beca(value: Any) -> str:
         "PIERDE BECA": "PIERDE BECA",
         "NUEVA BECA": "NUEVA BECA",
         "NO APLICA": "NO APLICA",
+        "SIN BECA": "SIN BECA",
     }
     return equivalencias.get(estado, estado)
 
@@ -634,9 +636,10 @@ class BecaValidator:
                 estado = canonical_estado_beca(row.get(f"estado_beca_{suffix}"))
                 tipo_beca = normalize_text(row.get(f"tipo_beca_{suffix}"))
 
-                # Si el periodo está marcado como SIN BECA, no aplican las reglas
-                # de consistencia financiera ni de entrega de beca para ese periodo.
-                if tipo_beca == "SIN BECA":
+                # Si el periodo está marcado como SIN BECA en tipo_beca o estado_beca,
+                # no aplican las reglas de consistencia financiera ni de entrega de beca
+                # para ese periodo.
+                if tipo_beca == "SIN BECA" or estado == "SIN BECA":
                     continue
 
                 motivo = row.get(f"motivo_beca_{suffix}")
@@ -699,15 +702,18 @@ class BecaValidator:
             tipo_p1 = normalize_text(row.get("tipo_beca_p1"))
             tipo_p2 = normalize_text(row.get("tipo_beca_p2"))
 
+            estado_p1 = canonical_estado_beca(row.get("estado_beca_p1"))
+            estado_p2 = canonical_estado_beca(row.get("estado_beca_p2"))
+
             # La matriz Estado Beca / Culminó Estudios aplica únicamente cuando
             # existe beca registrada en ambos periodos. Si algún periodo es
             # SIN BECA, no se fuerza la relación de estados de beca.
-            if "SIN BECA" in {tipo_p1, tipo_p2}:
+            if "SIN BECA" in {tipo_p1, tipo_p2, estado_p1, estado_p2}:
                 continue
 
-            e1 = canonical_estado_beca(row.get("estado_beca_p1"))
+            e1 = estado_p1
             c1 = canonical_si_no(row.get("culmino_estudios_p1"))
-            e2 = canonical_estado_beca(row.get("estado_beca_p2"))
+            e2 = estado_p2
             c2 = canonical_si_no(row.get("culmino_estudios_p2"))
 
             if not e1 or not c1 or not e2 or not c2:
