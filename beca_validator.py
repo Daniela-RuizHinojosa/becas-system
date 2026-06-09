@@ -287,7 +287,7 @@ def canonical_estado_beca(value: Any) -> str:
         "PIERDE LA BECA": "PIERDE BECA",
         "PIERDE BECA": "PIERDE BECA",
         "NUEVA BECA": "NUEVA BECA",
-        "NO APLICA": "NO APLICA",
+        "NO APLICA": "SIN BECA",
         "SIN BECA": "SIN BECA",
     }
     return equivalencias.get(estado, estado)
