@@ -311,8 +311,25 @@ def periodo_es_sin_beca(row: pd.Series, suffix: str) -> bool:
 def safe_float(value: Any) -> Optional[float]:
     if pd.isna(value) or str(value).strip() == "":
         return None
+
+    text = str(value).strip()
+
+    # Permitir guion como cero en campos monetarios
+    if text in {"-", "–", "—"}:
+        return 0.0
+
+    # Quitar espacios y símbolo de dólar si existiera
+    text = text.replace("$", "").replace(" ", "")
+
+    # Formato ecuatoriano: 3.281,25 -> 3281.25
+    if "," in text and "." in text:
+        text = text.replace(".", "").replace(",", ".")
+    # Formato decimal con coma: 2978,16 -> 2978.16
+    elif "," in text:
+        text = text.replace(",", ".")
+
     try:
-        return float(str(value).replace(",", ""))
+        return float(text)
     except Exception:
         return None
 
@@ -692,14 +709,15 @@ class BecaValidator:
                         self.add_error(idx, f"fecha_entrega_beca_{suffix}", "consistencia", "Si el estado es NO APLICA, la fecha de entrega debe estar vacía.", fecha)
                     if monto_total != 0:
                         self.add_error(idx, f"estado_beca_{suffix}", "consistencia", "Si el estado es NO APLICA, todos los montos deben ser 0 o estar vacíos.", monto_total)
+		EPS = 0.01
 
-                if total_matricula_financiado > costo_matricula:
+                if total_matricula_financiado - costo_matricula > EPS:
                     self.add_error(idx, f"monto_financiado_estado_matricula_{suffix}", "consistencia", "La suma financiada para matrícula no puede superar el costo de matrícula.", total_matricula_financiado)
-                if total_arancel_financiado > costo_arancel:
+                if total_arancel_financiado - costo_arancel > EPS:
                     self.add_error(idx, f"monto_financiado_estado_arancel_{suffix}", "consistencia", "La suma financiada para arancel no puede superar el costo de arancel.", total_arancel_financiado)
-                if monto_total > costo_total:
+                if monto_total - costo_total > EPS:
                     self.add_error(idx, f"estado_beca_{suffix}", "consistencia", "La suma total financiada no puede superar el costo total del período.", monto_total)
-                if monto_estado_total > costo_total:
+                if monto_estado_total - costo_total > EPS:
                     self.add_error(idx, f"estado_beca_{suffix}", "consistencia", "El financiamiento estatal no puede superar el costo total del período.", monto_estado_total)
 
     def validate_estado_culmino_relations(self, df: pd.DataFrame) -> None:
