@@ -709,7 +709,8 @@ class BecaValidator:
                         self.add_error(idx, f"fecha_entrega_beca_{suffix}", "consistencia", "Si el estado es NO APLICA, la fecha de entrega debe estar vacía.", fecha)
                     if monto_total != 0:
                         self.add_error(idx, f"estado_beca_{suffix}", "consistencia", "Si el estado es NO APLICA, todos los montos deben ser 0 o estar vacíos.", monto_total)
-		EPS = 0.01
+
+                EPS = 0.01
 
                 if total_matricula_financiado - costo_matricula > EPS:
                     self.add_error(idx, f"monto_financiado_estado_matricula_{suffix}", "consistencia", "La suma financiada para matrícula no puede superar el costo de matrícula.", total_matricula_financiado)
@@ -859,7 +860,7 @@ def build_output_workbook(
             df_errors.to_excel(writer, sheet_name="errores", index=False)
         resumen.to_excel(writer, sheet_name="resumen", index=False)
         if df_duplicados.empty:
-    	    pd.DataFrame({"resultado": ["Sin duplicados por cédula"]}).to_excel(
+            pd.DataFrame({"resultado": ["Sin duplicados por cédula"]}).to_excel(
                 writer, sheet_name="duplicados_cedula", index=False
             )
         else:
