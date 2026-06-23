@@ -766,7 +766,8 @@ class BecaValidator:
         duplicados["criterio_duplicado"] = "cedula"
         duplicados["veces_repetida_cedula"] = duplicados.groupby("cedula")["cedula"].transform("count")
 
-        return duplicados.sort_values(["cedula"])
+        duplicados["cedula_orden"] = duplicados["cedula"].astype(str)
+        return duplicados.sort_values(["cedula_orden"]).drop(columns=["cedula_orden"])
 
     def add_derived_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
